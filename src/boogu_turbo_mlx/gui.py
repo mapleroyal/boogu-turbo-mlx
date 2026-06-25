@@ -1694,6 +1694,13 @@ GUI_HTML = """<!doctype html>
       color: var(--text);
       background: #151d26;
     }
+    .batch-input-actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
     .batch-file-button,
     .batch-action-button {
       min-height: 36px;
@@ -1704,6 +1711,22 @@ GUI_HTML = """<!doctype html>
       font: inherit;
       padding: 0 12px;
       cursor: pointer;
+    }
+    .batch-file-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .batch-button-icon {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 auto;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
     .batch-file-button:hover,
     .batch-action-button:hover:not(:disabled) {
@@ -1915,11 +1938,27 @@ GUI_HTML = """<!doctype html>
   <div id="batchModal" class="modal-backdrop" hidden>
     <div class="batch-modal" role="dialog" aria-modal="true" aria-labelledby="batchModalTitle">
       <div class="batch-modal-head">
-        <div id="batchModalTitle" class="section-label">Run batch</div>
+        <div id="batchModalTitle" class="section-label">Run batch from JSON</div>
         <button id="batchCloseButton" class="batch-close" type="button" title="Close" aria-label="Close">&#215;</button>
       </div>
       <div id="batchDrop" class="batch-drop">
-        <button id="batchFileButton" class="batch-file-button" type="button">Choose JSON</button>
+        <div class="batch-input-actions">
+          <button id="batchFileButton" class="batch-file-button" type="button">
+            <svg class="batch-button-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <path d="M14 2v6h6"></path>
+            </svg>
+            <span>Choose file</span>
+          </button>
+          <button id="batchPasteButton" class="batch-file-button" type="button">
+            <svg class="batch-button-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 4h6"></path>
+              <path d="M9 2h6a2 2 0 0 1 2 2v2H7V4a2 2 0 0 1 2-2z"></path>
+              <path d="M7 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"></path>
+            </svg>
+            <span>Paste</span>
+          </button>
+        </div>
         <div class="batch-drop-copy">Or drop the file here.</div>
         <input id="batchFileInput" type="file" accept=".json,.boogu-batch.json,application/json" hidden>
         <div id="batchFileName" class="batch-file-name"></div>
@@ -1979,6 +2018,7 @@ GUI_HTML = """<!doctype html>
     const batchCancelModalButton = document.getElementById("batchCancelModalButton");
     const batchDrop = document.getElementById("batchDrop");
     const batchFileButton = document.getElementById("batchFileButton");
+    const batchPasteButton = document.getElementById("batchPasteButton");
     const batchFileInput = document.getElementById("batchFileInput");
     const batchFileName = document.getElementById("batchFileName");
     const batchValidation = document.getElementById("batchValidation");
@@ -2401,6 +2441,13 @@ GUI_HTML = """<!doctype html>
       updateBatchGenerateEnabled();
     }
 
+    function isBatchStatusText(text) {
+      const trimmed = text.trim();
+      return trimmed.startsWith("Paste failed \u00d7 -")
+        || trimmed.startsWith("Invalid \u00d7 -")
+        || trimmed.startsWith("Validated \u2713 -");
+    }
+
     async function copyExampleBatchPrompt() {
       batchCopyStatus.textContent = "";
       try {
@@ -2418,13 +2465,13 @@ GUI_HTML = """<!doctype html>
       }
     }
 
-    async function validateBatchFile(file) {
+    async function validateBatchText(text, sourceName) {
       resetBatchValidation();
-      if (!file) return;
-      batchFileName.textContent = file.name;
+      batchFileInput.value = "";
+      batchFileName.textContent = sourceName;
       setBatchValidation("Validating...", "");
       try {
-        const parsed = JSON.parse(await file.text());
+        const parsed = JSON.parse(text);
         const response = await apiFetch("/api/validate-batch", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2439,6 +2486,47 @@ GUI_HTML = """<!doctype html>
       } catch (error) {
         validatedBatchJobs = null;
         setBatchValidation(`Invalid \u00d7 - ${error.message || String(error)}`, "invalid");
+      }
+    }
+
+    async function validateBatchFile(file) {
+      resetBatchValidation();
+      if (!file) return;
+      try {
+        await validateBatchText(await file.text(), file.name);
+      } catch (error) {
+        batchFileName.textContent = file.name;
+        setBatchValidation(`Invalid \u00d7 - ${error.message || String(error)}`, "invalid");
+      }
+    }
+
+    async function pasteBatchText() {
+      resetBatchValidation();
+      batchFileName.textContent = "Pasted JSON";
+      try {
+        if (!navigator.clipboard || !navigator.clipboard.readText) {
+          throw new Error("Clipboard is unavailable.");
+        }
+        const text = await navigator.clipboard.readText();
+        if (!text.trim()) {
+          throw new Error("Clipboard is empty.");
+        }
+        if (isBatchStatusText(text)) {
+          setBatchValidation("Paste failed \u00d7 - Your clipboard contains a previous status message. Copy your batch JSON, then try again.", "invalid");
+          return;
+        }
+        await validateBatchText(text, "Pasted JSON");
+      } catch (error) {
+        validatedBatchJobs = null;
+        const message = error.message || String(error);
+        const clipboardBlocked = error.name === "NotAllowedError"
+          || error.name === "SecurityError"
+          || message === "Clipboard is unavailable.";
+        if (clipboardBlocked) {
+          setBatchValidation("Paste failed \u00d7 - Clipboard access was blocked. Enable the clipboard permission for this site in your browser, then try again.", "invalid");
+        } else {
+          setBatchValidation(`Paste failed \u00d7 - ${message}`, "invalid");
+        }
       }
     }
 
@@ -2602,6 +2690,7 @@ GUI_HTML = """<!doctype html>
     batchCloseButton.addEventListener("click", closeBatchModal);
     batchCancelModalButton.addEventListener("click", closeBatchModal);
     batchFileButton.addEventListener("click", () => batchFileInput.click());
+    batchPasteButton.addEventListener("click", pasteBatchText);
     batchFileInput.addEventListener("change", () => {
       validateBatchFile(batchFileInput.files && batchFileInput.files[0]);
     });
