@@ -1,0 +1,66 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "boogu-turbo-mlx"
+version = "0.1.0"
+description = "MLX-native Boogu Image 0.1 Turbo text-to-image inference runtime."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [
+  { name = "boogu-turbo-mlx contributors" }
+]
+keywords = ["boogu", "mlx", "text-to-image", "diffusion", "apple-silicon"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+  "huggingface-hub>=0.24",
+]
+
+[project.optional-dependencies]
+runtime = [
+  "jinja2>=3.1",
+  "mlx>=0.31.2",
+  "numpy>=1.26",
+  "pillow>=10",
+  "transformers>=4.57",
+]
+conversion = [
+  "mlx>=0.31.2",
+  "safetensors>=0.4",
+]
+oracle = [
+  "diffusers>=0.35.2",
+  "einops>=0.8",
+  "transformers>=4.57",
+  "torch",
+  "torchvision",
+]
+dev = [
+  "einops>=0.8",
+  "jinja2>=3.1",
+  "mlx>=0.31.2",
+  "numpy>=1.26",
+  "pillow>=10",
+  "pytest>=8",
+  "safetensors>=0.4",
+  "transformers>=4.57",
+]
+
+[project.scripts]
+boogu-turbo-mlx = "boogu_turbo_mlx.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/boogu_turbo_mlx"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.boogu-turbo-mlx/
+AGENTS.md
+Launch Boogu Turbo.command
+
+# Large local artifacts should stay outside source control.
+artifacts/
+models/
+outputs/
+.DS_Store
